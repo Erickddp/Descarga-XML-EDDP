@@ -182,35 +182,129 @@ class Indice:
         return len(self.datos)
 
 
+# ---------------------------------------------------------------- caché de renglones
+VERSION_CACHE = 1        # súbela si cambia lo que lector.leer_xml_filas saca de un XML
+
+
+class CacheFilas:
+    """Renglones ya interpretados de una carpeta, para no volver a abrir cada XML
+    (en Google Drive o con antivirus, abrir miles de archivos es lo más lento).
+    Un archivo por carpeta leída, junto al índice: cache_filas/<hash>.json.
+    Cada entrada vale mientras el XML conserve fecha de modificación y tamaño."""
+
+    def __init__(self, ruta_indice, carpeta: str):
+        import hashlib
+        clave = hashlib.sha1(str(Path(carpeta).resolve()).lower().encode("utf-8")).hexdigest()[:16]
+        self.ruta = Path(ruta_indice).parent / "cache_filas" / f"{clave}.json"
+        self.datos: Dict[str, list] = {}
+        try:
+            leido = json.loads(self.ruta.read_text(encoding="utf-8"))
+            if leido.get("version") == VERSION_CACHE:
+                self.datos = leido.get("archivos") or {}
+        except (OSError, ValueError, AttributeError):
+            self.datos = {}
+
+    def filas_de(self, ruta: str, firma) -> Optional[List[Dict]]:
+        v = self.datos.get(ruta)
+        if v and v[0] == firma[0] and v[1] == firma[1]:
+            return v[2]
+        return None
+
+    def guardar(self, vigentes: Dict[str, list]) -> None:
+        """Deja solo lo que sigue existiendo en la carpeta."""
+        self.datos = vigentes
+        try:
+            self.ruta.parent.mkdir(parents=True, exist_ok=True)
+            tmp = self.ruta.with_suffix(".tmp")
+            tmp.write_text(json.dumps({"version": VERSION_CACHE, "archivos": vigentes},
+                                      ensure_ascii=False, separators=(",", ":")),
+                           encoding="utf-8")
+            tmp.replace(self.ruta)
+        except (OSError, TypeError, ValueError):
+            pass                              # sin caché se lee todo, como antes
+
+
+def _listar_con_firma(carpeta: str) -> List[Tuple[Path, Tuple[int, int]]]:
+    """XML de la carpeta (recursivo) con su (mtime_ns, tamaño). Usa scandir: en
+    Windows la fecha y el tamaño vienen con el listado, sin tocar cada archivo."""
+    import os
+    salida, pila = [], [str(carpeta)]
+    while pila:
+        try:
+            with os.scandir(pila.pop()) as it:
+                for e in it:
+                    try:
+                        if e.is_dir(follow_symlinks=False):
+                            pila.append(e.path)
+                        elif e.name.lower().endswith(".xml"):
+                            st = e.stat()
+                            salida.append((Path(e.path), (st.st_mtime_ns, st.st_size)))
+                    except OSError:
+                        continue
+        except OSError:
+            continue
+    salida.sort(key=lambda x: x[0])
+    return salida
+
+
 def leer_carpeta_con_indice(carpeta: str, indice: Indice, progreso=None,
                             forzar: bool = False, cancelado=None
                             ) -> Tuple[List[Renglon], int, int]:
-    """Lee la carpeta reusando el índice. Regresa (filas, nuevos, reusados).
+    """Lee la carpeta reusando lo ya leído. Regresa (filas, nuevos, reusados).
 
-    Nota: el índice acelera saber QUÉ hay; los renglones completos se arman
-    leyendo el XML (es lo que alimenta la tabla y el Excel). Los archivos se
-    abren en paralelo y cada uno se consulta al disco una sola vez.
+    Solo se abren los XML nuevos o modificados (en paralelo); los demás salen de
+    la caché de renglones. forzar=True ('Releer todo') ignora la caché.
     """
-    from .lector import leer_archivos, listar_xml
+    from .lector import leer_archivos
 
-    filas, firmas = leer_archivos(listar_xml(carpeta), progreso=progreso, cancelado=cancelado)
-    nuevos = reusados = 0
-    for r in filas:
-        ruta = str(r.datos.get("Archivo", ""))
-        firma = firmas.get(ruta)
-        previo = indice.datos.get(ruta)
-        if (not forzar and firma and previo
-                and (previo.get("mtime"), previo.get("tamano")) == firma):
-            reusados += 1
+    if not Path(carpeta).exists():
+        return [], 0, 0
+    listado = _listar_con_firma(carpeta)
+    cache = CacheFilas(indice.ruta, carpeta)
+    en_cache: Dict[str, List[Dict]] = {}
+    pendientes: List[Path] = []
+    for a, firma in listado:
+        previas = None if forzar else cache.filas_de(str(a), firma)
+        if previas is None:
+            pendientes.append(a)
         else:
-            nuevos += 1
-        if firma:
+            en_cache[str(a)] = previas
+
+    if pendientes or not listado:
+        leidas, firmas = leer_archivos(pendientes, progreso=progreso, cancelado=cancelado)
+    else:
+        leidas, firmas = [], {}
+        if progreso:
+            progreso(len(listado), len(listado))
+    por_archivo: Dict[str, List[Renglon]] = {}
+    for r in leidas:
+        por_archivo.setdefault(str(r.datos.get("Archivo", "")), []).append(r)
+
+    filas: List[Renglon] = []
+    vigentes: Dict[str, list] = {}
+    nuevos = reusados = 0
+    for a, firma in listado:
+        ruta = str(a)
+        if ruta in en_cache:
+            propias = [Renglon(dict(d)) for d in en_cache[ruta]]
+            reusados += len(propias)
+            vigentes[ruta] = [firma[0], firma[1], en_cache[ruta]]
+        else:
+            propias = por_archivo.get(ruta, [])
+            nuevos += len(propias)
+            if ruta in firmas:                # se pudo abrir (sea o no un CFDI)
+                vigentes[ruta] = [firma[0], firma[1], [dict(r.datos) for r in propias]]
+        filas.extend(propias)
+        if propias:
+            r = propias[0]
             indice.datos[ruta] = {
-                "archivo": ruta, "mtime": firma[0], "tamano": firma[1],
+                "archivo": ruta, "mtime": str(firma[0] // 1_000_000_000), "tamano": str(firma[1]),
                 "uuid": r.datos.get("UUID", ""), "tipo": r.datos.get("Tipo", ""),
                 "fecha": r.datos.get("Fecha", ""), "total": r.datos.get("Total", ""),
             }
-    indice.guardar()
+    if pendientes or len(vigentes) != len(cache.datos):
+        cache.guardar(vigentes)
+        indice.guardar()
     return filas, nuevos, reusados
 
 

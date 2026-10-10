@@ -455,3 +455,57 @@ def test_rep_real_columnas_completas():
     assert f.datos["Es Pago"] == "Sí"
     assert f.datos["Uso CFDI"] == "CP01"
     assert f.datos["Domicilio Receptor"] == "32546"
+
+
+# ---------------------------------------------------------------- caché de renglones
+def _contar_aperturas(monkeypatch):
+    """Cuenta cuántos XML se abren de verdad."""
+    import sat_descarga.lector as lector
+    abiertos = []
+    real = lector._bytes_de
+    monkeypatch.setattr(lector, "_bytes_de", lambda a: abiertos.append(a) or real(a))
+    return abiertos
+
+
+def test_cache_no_vuelve_a_abrir_los_xml(carpeta, tmp_path, monkeypatch):
+    ruta = tmp_path / "i.csv"
+    primeras, _, _ = leer_carpeta_con_indice(str(carpeta), Indice(str(ruta)))
+    abiertos = _contar_aperturas(monkeypatch)
+    filas, nuevos, reusados = leer_carpeta_con_indice(str(carpeta), Indice(str(ruta)))
+    assert abiertos == [] and (nuevos, reusados) == (0, 5)
+    assert [r.datos for r in filas] == [r.datos for r in primeras]      # mismos datos, mismo orden
+
+
+def test_cache_solo_abre_lo_nuevo_o_modificado(carpeta, tmp_path, monkeypatch):
+    import os, time
+    ruta = tmp_path / "i.csv"
+    leer_carpeta_con_indice(str(carpeta), Indice(str(ruta)))
+    em = carpeta / "202608 HIHR" / "emitidos"
+    (em / "NUEVO.xml").write_bytes(cfdi40(uuid="33333333-2222-3333-4444-555555555555"))
+    (em / "E0.xml").write_bytes(cfdi40(uuid="44444444-2222-3333-4444-555555555555", total="2000.00"))
+    os.utime(em / "E0.xml", (time.time() + 10, time.time() + 10))
+    abiertos = _contar_aperturas(monkeypatch)
+    filas, nuevos, reusados = leer_carpeta_con_indice(str(carpeta), Indice(str(ruta)))
+    assert sorted(a.name for a in abiertos) == ["E0.xml", "NUEVO.xml"]
+    assert (nuevos, reusados) == (2, 4)
+    assert any(r.datos["Total"] == 2000.0 for r in filas)
+
+
+def test_cache_releer_todo_la_ignora_y_borrados_salen(carpeta, tmp_path, monkeypatch):
+    ruta = tmp_path / "i.csv"
+    leer_carpeta_con_indice(str(carpeta), Indice(str(ruta)))
+    abiertos = _contar_aperturas(monkeypatch)
+    _, nuevos, _ = leer_carpeta_con_indice(str(carpeta), Indice(str(ruta)), forzar=True)
+    assert nuevos == 5 and len(abiertos) == 6            # 5 CFDI + roto.xml
+    (carpeta / "202608 HIHR" / "emitidos" / "E1.xml").unlink()
+    filas, _, _ = leer_carpeta_con_indice(str(carpeta), Indice(str(ruta)))
+    assert len(filas) == 4
+
+
+def test_cache_danada_se_ignora(carpeta, tmp_path):
+    ruta = tmp_path / "i.csv"
+    leer_carpeta_con_indice(str(carpeta), Indice(str(ruta)))
+    for f in (tmp_path / "cache_filas").glob("*.json"):
+        f.write_text("{roto", encoding="utf-8")
+    filas, nuevos, _ = leer_carpeta_con_indice(str(carpeta), Indice(str(ruta)))
+    assert len(filas) == 5 and nuevos == 5

@@ -12,7 +12,6 @@ Cada PDF lleva una LETRA GRANDE según qué es para quien lo lee:
   I ingreso · G gasto · N nómina · P pago · E nota de crédito · T traslado
 """
 import copy
-import io
 import json
 import re
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
@@ -241,9 +240,7 @@ def cfdi_a_pdf(detalle: Dict, destino: str, config: Optional[Dict] = None,
     """Representación impresa del CFDI en UNA sola hoja carta. Recibe el dict ya
     procesado por lector.leer_detalle (no toca el XML)."""
     try:
-        from reportlab.graphics import renderPDF
-        from reportlab.graphics.barcode.qr import QrCodeWidget
-        from reportlab.graphics.shapes import Drawing
+        from reportlab.graphics.barcode import qrencoder
         from reportlab.lib import colors
         from reportlab.lib.pagesizes import letter
         from reportlab.lib.styles import ParagraphStyle
@@ -310,12 +307,27 @@ def cfdi_a_pdf(detalle: Dict, destino: str, config: Optional[Dict] = None,
         c.setLineWidth(0.8)
         c.line(ML, tope_pie, ancho_p - ML, tope_pie)
         if qr_url:
-            qr = QrCodeWidget(qr_url, barLevel="M", barBorder=0)
-            x0, y0, x1, y1 = qr.getBounds()
-            dib = Drawing(qr_lado, qr_lado, transform=[qr_lado / (x1 - x0), 0, 0,
-                                                       qr_lado / (y1 - y0), 0, 0])
-            dib.add(qr)
-            renderPDF.draw(dib, c, ML, base_bloque + bloque_h - qr_lado)
+            # el QR se pinta directo como rectángulos (el widget de reportlab tarda ~10x más)
+            cod = qrencoder.QRCode(None, qrencoder.QRErrorCorrectLevel.M)
+            cod.addData(qr_url)
+            cod.make()
+            n_mod = cod.getModuleCount()
+            lado = qr_lado / n_mod
+            y_sup = base_bloque + bloque_h
+            c.setFillColor(colors.black)
+            ruta_qr = c.beginPath()
+            for fila in range(n_mod):
+                col = 0
+                while col < n_mod:
+                    if cod.isDark(fila, col):
+                        ini = col
+                        while col < n_mod and cod.isDark(fila, col):
+                            col += 1
+                        ruta_qr.rect(ML + ini * lado, y_sup - (fila + 1) * lado,
+                                     (col - ini) * lado, lado)
+                    else:
+                        col += 1
+            c.drawPath(ruta_qr, stroke=0, fill=1)
         y = base_bloque + bloque_h
         for p, h in zip(pie_pars, alturas):
             p.drawOn(c, ML + qr_lado + gap, y - h)
@@ -642,25 +654,29 @@ def cfdi_a_pdf(detalle: Dict, destino: str, config: Optional[Dict] = None,
         doc.build(cuerpo)
         return paginas[0]
 
+    def cabe(params):
+        """Mide el cuerpo sin generar el PDF (sumando el alto de cada bloque)."""
+        alto = 0.0
+        for f in construir(*params):
+            alto += f.wrap(W, 100000)[1] + f.getSpaceBefore() + f.getSpaceAfter()
+        return alto <= frame_h - 2
+
     n = len(detalle.get("conceptos", []))
     etapas = [(e, 100000, None, 12) for e in _ESCALAS]
     etapas += [(_ESCALA_MIN, 160, None, 8), (_ESCALA_MIN, 90, None, 4)]
-    elegido, forzar = None, False
-    for params in etapas:
-        if renderizar(io.BytesIO(), params) == 1:
-            elegido = params
-            break
+    elegido, forzar = next((p for p in etapas if cabe(p)), None), False
     if elegido is None:                    # mostrar menos conceptos: el mayor N que cabe
         lo, hi, mejor = 1, max(n - 1, 1), None
         while lo <= hi:
             mid = (lo + hi) // 2
-            if renderizar(io.BytesIO(), (_ESCALA_MIN, 90, mid, 3)) == 1:
+            if cabe((_ESCALA_MIN, 90, mid, 3)):
                 mejor, lo = mid, mid + 1
             else:
                 hi = mid - 1
         elegido = (_ESCALA_MIN, 90, mejor or 1, 3)
         forzar = mejor is None             # ni con 1 concepto cabe: red de seguridad
-    renderizar(str(d), elegido, forzar)
+    if renderizar(str(d), elegido, forzar) > 1:     # la medición falló por poco: encoger
+        renderizar(str(d), elegido, True)
     return str(d)
 
 
@@ -749,6 +765,78 @@ def generar_pdfs(filas: List, carpeta: str, config: Optional[Dict] = None,
                 cfdi_a_pdf(det, str(salida), config=conf, clase=d.get("Clase", ""),
                            tipo=d.get("Tipo", ""), inteligencia=intel)
                 res["generados"] += 1
+        except Exception as e:  # noqa: BLE001 — un XML malo no detiene el lote
+            res["errores"].append((d.get("Archivo", ""), str(e)))
+        if progreso:
+            progreso(i, len(unicos))
+    return res
+
+
+# ---------------------------------------------------------------- paquete para enviar
+PLANTILLA_ENVIO = "{serie}-{folio} {uuid}"
+
+
+def nombre_envio(datos: Dict, plantilla: str = PLANTILLA_ENVIO) -> str:
+    """Nombre base (sin extensión) compartido por el XML y el PDF: 'C-1 UUID'.
+    Sin serie o sin folio no deja guiones sueltos."""
+    base = nombre_pdf(plantilla, datos)[:-4]
+    return re.sub(r"\s{2,}", " ", base).strip(" -._") or (datos.get("UUID") or "SINUUID").upper()
+
+
+def carpeta_cliente(datos: Dict) -> str:
+    """'RFC Nombre' de la contraparte (el cliente si el CFDI es emitido)."""
+    emitido = datos.get("Tipo") != "Recibido"
+    rfc = datos.get("RFC Receptor" if emitido else "RFC Emisor") or "SIN RFC"
+    nombre = datos.get("Nombre Receptor" if emitido else "Nombre Emisor") or ""
+    return _INVALIDOS.sub("", f"{rfc} {nombre}").strip(" .")[:80]
+
+
+def paquete_envio(filas: List, carpeta: str, inteligencia_de: Optional[Callable] = None,
+                  progreso: Optional[Callable] = None,
+                  cancelado: Callable[[], bool] = lambda: False,
+                  diseno_de: Optional[Callable[[Dict], Dict]] = None,
+                  config: Optional[Dict] = None, plantilla: str = PLANTILLA_ENVIO) -> Dict:
+    """Deja listo lo que se le manda a cada cliente: una carpeta por cliente con el
+    XML (copia) y su PDF, ambos con el mismo nombre. No toca los XML originales."""
+    import shutil
+    from .lector import leer_detalle
+
+    if config is None and diseno_de is None:
+        config = cargar_config_pdf()
+    destino = Path(carpeta)
+    destino.mkdir(parents=True, exist_ok=True)
+    unicos, vistos = [], set()
+    for f in filas:
+        d = f.datos if hasattr(f, "datos") else f
+        k = (d.get("UUID") or d.get("Archivo") or "").upper()
+        if k not in vistos:
+            vistos.add(k)
+            unicos.append(d)
+
+    res = {"generados": 0, "omitidos": 0, "errores": [], "carpeta": str(destino),
+           "total": len(unicos), "cancelado": False, "clientes": {}}
+    for i, d in enumerate(unicos, 1):
+        if cancelado():
+            res["cancelado"] = True
+            break
+        cliente = carpeta_cliente(d)
+        base = destino / cliente / nombre_envio(d, plantilla)
+        xml, pdf = Path(f"{base}.xml"), Path(f"{base}.pdf")
+        try:
+            origen = Path(d.get("Archivo", ""))
+            det = leer_detalle(origen)
+            if not det:
+                raise ValueError("no es un CFDI legible")
+            xml.parent.mkdir(parents=True, exist_ok=True)
+            if xml.exists() and pdf.exists():
+                res["omitidos"] += 1
+            else:
+                shutil.copyfile(origen, xml)
+                cfdi_a_pdf(det, str(pdf), config=diseno_de(d) if diseno_de else config,
+                           clase=d.get("Clase", ""), tipo=d.get("Tipo", ""),
+                           inteligencia=inteligencia_de(d) if inteligencia_de else None)
+                res["generados"] += 1
+            res["clientes"][cliente] = res["clientes"].get(cliente, 0) + 1
         except Exception as e:  # noqa: BLE001 — un XML malo no detiene el lote
             res["errores"].append((d.get("Archivo", ""), str(e)))
         if progreso:

@@ -27,7 +27,8 @@ from sat_descarga.ejecutor import ejecutar_varios, probar_efirma, resumen_global
 from sat_descarga.inteligencia import (Memoria, asignar_perspectiva, candidatos_dueno, procesar,
                                        rfc_sugerido, sin_perspectiva)
 from sat_descarga.lectura import LecturaCancelada, leer_y_procesar
-from sat_descarga.pdf import cfdi_a_pdf, dueno_de, generar_pdfs, nombre_pdf, plantilla_de
+from sat_descarga.pdf import (cfdi_a_pdf, dueno_de, generar_pdfs, nombre_pdf, paquete_envio,
+                              plantilla_de)
 from sat_descarga.perfiles import (FILTROS_DEFAULT, SECCIONES, SUBCARPETAS, PerfilReporte,
                                    Perfiles, completar_diseno)
 from sat_descarga.respaldo import crear_respaldo, restaurar_respaldo
@@ -292,36 +293,45 @@ class App(tk.Tk):
 
     def _construir_encabezado(self, cont):
         c = self.tema.color
-        barra = tk.Frame(cont, bg=c("surface"), height=58)
+        barra = tk.Frame(cont, bg=c("brand_bg"), height=60)
         barra.pack(fill="x", side="top")
         barra.pack_propagate(False)
-        linea = tk.Frame(cont, bg=c("border"), height=1)
-        linea.pack(fill="x", side="top")
 
-        tk.Label(barra, text="◆", bg=c("surface"), fg=c("primary"),
-                 font=self.tema.fuente("titulo")).pack(side="left", padx=(18, 8))
-        tk.Label(barra, text=APP_TITULO, bg=c("surface"), fg=c("text"),
-                 font=self.tema.fuente("titulo")).pack(side="left")
+        self._logo = self._imagen("logo_blanco.png")
+        if self._logo is not None:
+            tk.Label(barra, image=self._logo, bg=c("brand_bg"), bd=0).pack(side="left", padx=(18, 10))
+        else:
+            tk.Label(barra, text="◆", bg=c("brand_bg"), fg=c("brand_text"),
+                     font=self.tema.fuente("titulo")).pack(side="left", padx=(18, 8))
+        marca = tk.Frame(barra, bg=c("brand_bg"))
+        marca.pack(side="left")
+        tk.Label(marca, text=APP_TITULO, bg=c("brand_bg"), fg=c("brand_text"),
+                 font=self.tema.fuente("titulo")).pack(anchor="w")
+        tk.Label(marca, text="Descarga del SAT  ·  lectura de XML  ·  PDF", bg=c("brand_bg"),
+                 fg=c("brand_soft"), font=self.tema.fuente("chico")).pack(anchor="w")
 
         self.v_tema = tk.StringVar(value=self.cfg.opciones.tema or "claro")
 
         def boton(texto, cmd, tip=""):
-            b = tk.Button(barra, text=texto, bd=0, relief="flat", padx=8, highlightthickness=0,
-                          bg=c("surface"), fg=c("text_soft"), activebackground=c("surface_alt"),
-                          activeforeground=c("text"), cursor="hand2",
-                          font=self.tema.fuente("chico"), command=cmd)
+            b = tk.Button(barra, text=texto, bd=0, relief="flat", padx=10, pady=5,
+                          highlightthickness=0, bg=c("brand_bg"), fg=c("brand_soft"),
+                          activebackground=c("brand_hover"), activeforeground=c("brand_text"),
+                          cursor="hand2", font=self.tema.fuente("chico"), command=cmd)
             b.pack(side="right", padx=2)
+            b.bind("<Enter>", lambda _e: b.config(bg=c("brand_hover"), fg=c("brand_text")))
+            b.bind("<Leave>", lambda _e: b.config(bg=c("brand_bg"), fg=c("brand_soft")))
             return b
 
-        boton("◐  Tema", self._alternar_tema)
+        tk.Frame(barra, bg=c("brand_bg"), width=10).pack(side="right")
+        boton("Tema", self._alternar_tema)
         boton("A+", lambda: self._zoom(0.1))
         boton("A−", lambda: self._zoom(-0.1))
-        tk.Frame(barra, bg=c("border"), width=1, height=22).pack(side="right", padx=8)
-        boton("⇩  Restaurar", self._restaurar)
-        boton("⇧  Respaldar", self._respaldar)
-        boton("▤  PDF", self._config_pdf)
-        tk.Frame(barra, bg=c("border"), width=1, height=22).pack(side="right", padx=8)
-        self.lbl_ident = tk.Label(barra, text="", bg=c("surface"), fg=c("text_mute"),
+        tk.Frame(barra, bg=c("brand_hover"), width=1, height=22).pack(side="right", padx=8)
+        boton("Restaurar", self._restaurar)
+        boton("Respaldar", self._respaldar)
+        boton("Diseño PDF", self._config_pdf)
+        tk.Frame(barra, bg=c("brand_hover"), width=1, height=22).pack(side="right", padx=8)
+        self.lbl_ident = tk.Label(barra, text="", bg=c("brand_bg"), fg=c("brand_soft"),
                                   font=self.tema.fuente("chico"))
         self.lbl_ident.pack(side="right", padx=6)
 
@@ -350,17 +360,17 @@ class App(tk.Tk):
         self.tabla.tag_configure("revisar", foreground=self.tema.color("danger"))
 
         bts = ttk.Frame(cajaR, style="Surface.TFrame")
-        bts.pack(side="left", fill="y", padx=(12, 0))
-        ttk.Button(bts, text="＋  Agregar", style="Primary.TButton", width=16,
-                   command=self._agregar).pack(pady=(0, 8), fill="x")
+        bts.pack(fill="x", pady=(10, 0))
+        ttk.Button(bts, text="＋  Agregar", style="Primary.TButton",
+                   command=self._agregar).pack(side="left")
         for txt, cmd in [("Editar", self._editar), ("Quitar", self._quitar),
                          ("Probar e.firma", self._probar)]:
-            ttk.Button(bts, text=txt, width=16, command=cmd).pack(pady=3, fill="x")
-        sel = ttk.Frame(bts, style="Surface.TFrame"); sel.pack(pady=(8, 0), fill="x")
-        ttk.Button(sel, text="Todos", style="Ghost.TButton", width=7,
-                   command=lambda: self._marcar(True)).pack(side="left")
-        ttk.Button(sel, text="Ninguno", style="Ghost.TButton", width=8,
-                   command=lambda: self._marcar(False)).pack(side="left")
+            ttk.Button(bts, text=txt, command=cmd).pack(side="left", padx=(8, 0))
+        ttk.Button(bts, text="Ninguno", style="Ghost.TButton",
+                   command=lambda: self._marcar(False)).pack(side="right")
+        ttk.Button(bts, text="Todos", style="Ghost.TButton",
+                   command=lambda: self._marcar(True)).pack(side="right")
+        ttk.Label(bts, text="Marcar", style="MuteSurface.TLabel").pack(side="right", padx=(0, 4))
 
         # --- Parámetros
         cajaP = ttk.LabelFrame(raiz, text="  Periodo a descargar  ",
@@ -402,7 +412,7 @@ class App(tk.Tk):
         self.btn_desc.pack(side="left")
         self.btn_stop = ttk.Button(acc, text="Detener", command=self._detener, state="disabled")
         self.btn_stop.pack(side="left", padx=8)
-        ttk.Button(acc, text="Abrir carpeta", style="Ghost.TButton",
+        ttk.Button(acc, text="Abrir carpeta", style="GhostBg.TButton",
                    command=self._abrir_carpeta).pack(side="left")
         self.barra = ttk.Progressbar(acc, mode="indeterminate", length=200)
         self.barra.pack(side="right")
@@ -427,20 +437,41 @@ class App(tk.Tk):
         ttk.Entry(c, textvariable=var, width=ancho).pack(anchor="w", pady=(2, 0))
         return c
 
-    def _poner_icono(self):
+    def _recurso(self, nombre):
+        """Ruta de un archivo de recursos/ (en desarrollo o dentro del .exe), o None."""
         import sys as _sys
         from sat_descarga.config import carpeta_programa
         bases = [carpeta_programa(), Path(__file__).resolve().parent]
         if getattr(_sys, "_MEIPASS", None):                 # dentro del .exe
             bases.insert(0, Path(_sys._MEIPASS))
-        for cand in (b / "recursos" / "icono.png" for b in bases):
+        for cand in (b / "recursos" / nombre for b in bases):
             if cand.exists():
-                try:
-                    self._icono = tk.PhotoImage(file=str(cand))
-                    self.iconphoto(True, self._icono)
-                except tk.TclError:
-                    pass
-                break
+                return cand
+        return None
+
+    def _imagen(self, nombre):
+        ruta = self._recurso(nombre)
+        if ruta is None:
+            return None
+        try:
+            return tk.PhotoImage(master=self, file=str(ruta))
+        except tk.TclError:
+            return None
+
+    def _poner_icono(self):
+        import sys as _sys
+        if _sys.platform.startswith("win"):
+            try:                      # que la barra de tareas muestre el ícono propio
+                import ctypes
+                ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("EDDP.DescargaXML")
+            except Exception:  # noqa: BLE001
+                pass
+        self._icono = self._imagen("icono.png")
+        if self._icono is not None:
+            try:
+                self.iconphoto(True, self._icono)
+            except tk.TclError:
+                pass
 
     def _zoom(self, delta):
         actual = getattr(self.tema, "zoom", 1.0)
@@ -477,7 +508,7 @@ class App(tk.Tk):
         ttk.Button(fp, text="Editar…", command=self._config_pdf).pack(side="left")
         for texto, cmd in (("Nuevo", self._perfil_nuevo), ("Duplicar", self._perfil_duplicar),
                            ("Renombrar", self._perfil_renombrar), ("Borrar", self._perfil_borrar)):
-            ttk.Button(fp, text=texto, style="Ghost.TButton", command=cmd).pack(side="left", padx=(4, 0))
+            ttk.Button(fp, text=texto, style="GhostBg.TButton", command=cmd).pack(side="left", padx=(4, 0))
         self.v_perfil_info = tk.StringVar(value="")
         ttk.Label(fp, textvariable=self.v_perfil_info, style="Suave.TLabel").pack(side="right")
 
@@ -498,7 +529,7 @@ class App(tk.Tk):
         self.f_lectura = ttk.Frame(top, style="TFrame")
         self.barra_lectura = ttk.Progressbar(self.f_lectura, mode="determinate", maximum=1)
         self.barra_lectura.pack(side="left", fill="x", expand=True)
-        self.btn_cancelar_lectura = ttk.Button(self.f_lectura, text="Cancelar", style="Ghost.TButton",
+        self.btn_cancelar_lectura = ttk.Button(self.f_lectura, text="Cancelar", style="GhostBg.TButton",
                                                command=self._cancelar_leer)
         self.btn_cancelar_lectura.pack(side="left", padx=(8, 0))
 
@@ -506,15 +537,32 @@ class App(tk.Tk):
         barra = ttk.Frame(tab, style="TFrame"); barra.pack(fill="x", padx=12, pady=(2, 0))
         ttk.Button(barra, text="Exportar a Excel", style="Primary.TButton",
                    command=self._exportar_excel).pack(side="left")
-        ttk.Button(barra, text="▤  Generar PDFs", style="Primary.TButton",
-                   command=self._generar_pdfs).pack(side="left", padx=(8, 0))
         ttk.Button(barra, text="Copiar tabla", command=self._copiar_tabla).pack(side="left", padx=(8, 0))
-        ttk.Button(barra, text="Copiar selección", style="Ghost.TButton",
-                   command=self._copiar_seleccion).pack(side="left", padx=(4, 0))
-        ttk.Button(barra, text="Exportar CSV…", style="Ghost.TButton",
-                   command=self._exportar_csv_config).pack(side="left")
-        ttk.Button(barra, text="Elegir columnas…", style="Ghost.TButton",
-                   command=self._elegir_columnas).pack(side="left")
+        ttk.Separator(barra, orient="vertical").pack(side="left", fill="y", padx=10, pady=4)
+        ttk.Button(barra, text="Generar PDFs", style="Primary.TButton",
+                   command=self._generar_pdfs).pack(side="left")
+        ttk.Button(barra, text="PDF de todos", command=lambda: self._generar_pdfs(todos=True)
+                   ).pack(side="left", padx=(8, 0))
+        ttk.Button(barra, text="Paquete para enviar",
+                   command=lambda: self._generar_pdfs(envio=True)).pack(side="left", padx=(8, 0))
+        ttk.Separator(barra, orient="vertical").pack(side="left", fill="y", padx=10, pady=4)
+        mas = ttk.Menubutton(barra, text="Más", width=5)
+        menu = tk.Menu(mas, tearoff=0, bd=0, bg=self.tema.color("surface"),
+                       fg=self.tema.color("text"), activebackground=self.tema.color("sel_bg"),
+                       activeforeground=self.tema.color("sel_text"),
+                       font=self.tema.fuente("cuerpo"))
+        menu.add_command(label="Copiar selección", command=self._copiar_seleccion)
+        menu.add_command(label="Exportar CSV…", command=self._exportar_csv_config)
+        menu.add_command(label="Elegir columnas…", command=self._elegir_columnas)
+        mas.configure(menu=menu)
+        mas.pack(side="left")
+        # avance de los PDF (solo visible mientras se generan)
+        self.f_pdf = ttk.Frame(barra, style="TFrame")
+        self.barra_pdf = ttk.Progressbar(self.f_pdf, mode="determinate", maximum=1, length=140)
+        self.barra_pdf.pack(side="left", padx=(12, 0))
+        self.btn_cancelar_pdf = ttk.Button(self.f_pdf, text="Cancelar", style="GhostBg.TButton",
+                                           command=self._cancelar_pdfs)
+        self.btn_cancelar_pdf.pack(side="left", padx=(4, 0))
         self.v_totales = tk.StringVar(value="Sin datos leídos")
         ttk.Label(barra, textvariable=self.v_totales, style="Suave.TLabel").pack(side="right")
 
@@ -609,7 +657,8 @@ class App(tk.Tk):
         c0 = ttk.Frame(filtros, style="TFrame"); c0.grid(row=0, column=0, sticky="we", padx=(0, 12))
         ttk.Label(c0, text="Buscar  ·  RFC, nombre, UUID, folio", style="Suave.TLabel").pack(anchor="w")
         e = ttk.Entry(c0, textvariable=self.v_buscar); e.pack(fill="x", pady=(2, 0))
-        e.bind("<KeyRelease>", lambda _e: self._aplicar_filtros())
+        e.bind("<KeyRelease>", lambda _e: self._filtrar_pronto())
+        e.bind("<Return>", lambda _e: self._aplicar_filtros())
         filtros.columnconfigure(0, weight=1)
 
         c1 = ttk.Frame(filtros, style="TFrame"); c1.grid(row=0, column=1, sticky="w", padx=(0, 12))
@@ -626,7 +675,7 @@ class App(tk.Tk):
 
         c3 = ttk.Frame(filtros, style="TFrame"); c3.grid(row=0, column=3, sticky="e")
         ttk.Label(c3, text=" ", style="Suave.TLabel").pack(anchor="w")
-        ttk.Button(c3, text="Limpiar", style="Ghost.TButton",
+        ttk.Button(c3, text="Limpiar", style="GhostBg.TButton",
                    command=self._limpiar_filtros).pack(pady=(2, 0))
         self.v_filtros = tk.StringVar(value="Sin filtros")
         ttk.Label(filtros, textvariable=self.v_filtros, style="Suave.TLabel").grid(
@@ -709,9 +758,9 @@ class App(tk.Tk):
         bar = ttk.Frame(tab, style="TFrame"); bar.pack(fill="x", pady=(6, 0))
         ttk.Button(bar, text="▶  Ejecutar", style="Primary.TButton",
                    command=self._ejecutar_sql).pack(side="left")
-        ttk.Button(bar, text="Copiar resultado", style="Ghost.TButton",
+        ttk.Button(bar, text="Copiar resultado", style="GhostBg.TButton",
                    command=self._copiar_sql).pack(side="left", padx=8)
-        ttk.Button(bar, text="Exportar resultado…", style="Ghost.TButton",
+        ttk.Button(bar, text="Exportar resultado…", style="GhostBg.TButton",
                    command=self._exportar_sql).pack(side="left")
         self.v_sql_estado = tk.StringVar(value="")
         ttk.Label(bar, textvariable=self.v_sql_estado, style="Suave.TLabel").pack(side="right")
@@ -1261,12 +1310,19 @@ class App(tk.Tk):
         DialogoDueno(self, candidatos_dueno(self.filas), self._aplicar_dueno)
 
     # ------------------------------------------------ PDFs en masa
-    def _generar_pdfs(self):
+    def _cancelar_pdfs(self):
+        self._pdf_cancelado = True
+        self.v_totales.set("Cancelando PDFs…")
+
+    def _generar_pdfs(self, todos=False, envio=False):
+        """todos=True ignora la selección y genera los de toda la vista (con el filtro actual).
+        envio=True arma el paquete para clientes: una carpeta por cliente con el XML y
+        su PDF, los dos con el mismo nombre (Serie-Folio UUID)."""
         if not self.filas_vista:
             messagebox.showinfo(APP, "No hay datos. Dale 'Leer XML' primero."); return
         if getattr(self, "_hilo_pdf", None) and self._hilo_pdf.is_alive():
             messagebox.showinfo(APP, "Ya se están generando PDFs, espera a que termine."); return
-        sel = self.tabla_datos.selection()
+        sel = () if todos else self.tabla_datos.selection()
         if sel:
             fuente = [self.filas_vista[int(i)] for i in sel if int(i) < len(self.filas_vista)]
             origen = "seleccionados"
@@ -1274,11 +1330,16 @@ class App(tk.Tk):
             fuente = list(self.filas_vista)
             origen = "a la vista (con el filtro actual)"
         n = len({((r.datos.get("UUID") or r.datos.get("Archivo")), r.datos.get("Tipo")) for r in fuente})
-        if not messagebox.askyesno(APP, f"Generar {n:,} PDF de los comprobantes {origen}?\n\n"
-                                        "Los que ya existan en la carpeta no se vuelven a generar."):
+        if envio:
+            pregunta = (f"Armar el paquete de {n:,} comprobantes {origen}?\n\nUna carpeta por "
+                        "cliente con el XML y su PDF, nombrados Serie-Folio UUID.")
+        else:
+            pregunta = (f"Generar {n:,} PDF de los comprobantes {origen}?\n\n"
+                        "Los que ya existan en la carpeta no se vuelven a generar.")
+        if not messagebox.askyesno(APP, pregunta):
             return
         activo = self.perfiles_rep.activo
-        if activo is not None and activo.carpeta_pdf:
+        if activo is not None and activo.carpeta_pdf and not envio:
             carpeta = activo.carpeta_pdf             # el perfil ya sabe dónde van
         else:
             inicial = self.cfg.opciones.ultima_carpeta_pdf or self.v_carpeta_datos.get()
@@ -1289,6 +1350,9 @@ class App(tk.Tk):
             self.cfg.opciones.ultima_carpeta_pdf = carpeta
             self._guardar_cfg()
         diseno_de = self.diseno_de_fila
+        self._pdf_cancelado = False
+        self.barra_pdf.config(maximum=max(n, 1), value=0)
+        self.f_pdf.pack(side="left")
         self.v_totales.set(f"Generando 0/{n:,} PDF…")
 
         def progreso(i, total):
@@ -1296,8 +1360,9 @@ class App(tk.Tk):
 
         def tarea():
             try:
-                res = generar_pdfs(fuente, carpeta, inteligencia_de=self._intel_de,
-                                   progreso=progreso, diseno_de=diseno_de)
+                res = (paquete_envio if envio else generar_pdfs)(
+                    fuente, carpeta, inteligencia_de=self._intel_de, progreso=progreso,
+                    diseno_de=diseno_de, cancelado=lambda: self._pdf_cancelado)
             except Exception as e:  # noqa: BLE001
                 res = {"generados": 0, "omitidos": 0, "errores": [("", str(e))], "carpeta": carpeta}
             self.cola.put(("__fin_pdfs__", res))
@@ -1310,9 +1375,12 @@ class App(tk.Tk):
         self._hilo_pdf.start()
 
     def _fin_pdfs(self, res):
-        msg = (f"PDF generados: {res.get('generados', 0):,}\n"
+        self.f_pdf.pack_forget()
+        msg = ("Cancelado.\n\n" if res.get("cancelado") else "") + (f"PDF generados: {res.get('generados', 0):,}\n"
                f"Ya existían (no se tocaron): {res.get('omitidos', 0):,}\n"
                f"Con error: {len(res.get('errores', [])):,}\n\n{res.get('carpeta','')}")
+        if res.get("clientes"):
+            msg = f"Clientes: {len(res['clientes']):,}\n" + msg
         self.v_totales.set(f"{res.get('generados', 0):,} PDF generados")
         for archivo, err in res.get("errores", [])[:20]:
             self.log.warning("PDF no generado %s: %s", archivo, err)
@@ -1410,13 +1478,30 @@ class App(tk.Tk):
         if r:
             self.v_carpeta_datos.set(r)
 
+    def _filtrar_pronto(self):
+        """Filtra cuando dejas de teclear (no en cada tecla: repintar miles de filas cuesta)."""
+        if getattr(self, "_after_filtro", None):
+            self.after_cancel(self._after_filtro)
+        self._after_filtro = self.after(180, self._aplicar_filtros)
+
+    def _textos_busqueda(self, campos):
+        """Texto buscable de cada renglón, armado una sola vez por lectura."""
+        cache = getattr(self, "_cache_busqueda", None)
+        if cache is None or cache[0] is not self.filas:
+            cache = (self.filas, {id(r): "¦".join(str(r.datos.get(c, "")) for c in campos).lower()
+                                  for r in self.filas})
+            self._cache_busqueda = cache
+        return cache[1]
+
     def _aplicar_filtros(self):
+        self._after_filtro = None
         texto = self.v_buscar.get().strip().lower()
         tipo = self.v_f_tipo.get()
         mes = self.v_f_mes.get()
         campos = ("RFC Emisor", "Nombre Emisor", "RFC Receptor", "Nombre Receptor",
-                  "UUID", "Folio", "Serie", "Descripción")
+                  "UUID", "Folio", "Serie", "Descripción", "Fecha")
         clase = getattr(self, "_clase_filtro", None)
+        buscable = self._textos_busqueda(campos) if texto else {}
         vista = []
         for r in self.filas:
             d = r.datos
@@ -1426,7 +1511,7 @@ class App(tk.Tk):
                 continue
             if mes != "todos" and f"{d.get('Año','')}-{d.get('Mes','')}" != mes:
                 continue
-            if texto and not any(texto in str(d.get(c, "")).lower() for c in campos):
+            if texto and texto not in buscable[id(r)]:
                 continue
             vista.append(r)
         self.filas_vista = vista
@@ -1440,12 +1525,16 @@ class App(tk.Tk):
         self.tabla_datos.delete(*self.tabla_datos.get_children())
         for letra in CLASES:
             self.tabla_datos.tag_configure(f"cls_{letra}", foreground=self._color_texto_clase(letra))
+        # tk.call directo: Tcl convierte la tupla de una vez (ttk.insert formatea valor
+        # por valor en Python y con 70 columnas es ~4 veces más lento)
+        llamar, tabla = self.tabla_datos.tk.call, self.tabla_datos._w
         for i, r in enumerate(self.filas_vista[:MAX_FILAS_TABLA]):
-            letra = r.datos.get("Clase", "")
-            tags = ["par" if i % 2 == 0 else "impar"]
-            if letra:
-                tags.append(f"cls_{letra}")
-            self.tabla_datos.insert("", "end", iid=str(i), values=r.como_lista(), tags=tuple(tags))
+            d = r.datos
+            letra = d.get("Clase", "")
+            zebra = "par" if i % 2 == 0 else "impar"
+            llamar(tabla, "insert", "", "end", "-id", str(i),
+                   "-values", tuple([str(d.get(c, "")) for c in COLUMNAS]),
+                   "-tags", (zebra, f"cls_{letra}") if letra else (zebra,))
         self._pintar_kpis()
         aviso = ""
         if len(self.filas_vista) > MAX_FILAS_TABLA:
@@ -1797,6 +1886,8 @@ class App(tk.Tk):
                     self._fin_pdfs(item[1])
                 elif isinstance(item, str) and item.startswith("__pdf__"):
                     self.v_totales.set(f"Generando {item[7:]} PDF…")
+                    hechos, _, total = item[7:].partition("/")
+                    self.barra_pdf.config(maximum=max(int(total or 1), 1), value=int(hechos or 0))
                 elif isinstance(item, tuple) and item and item[0] == "__prog_lectura__":
                     self._progreso_lectura(item[1], item[2])
                 elif isinstance(item, tuple) and item and item[0] == "__fin_lectura__":

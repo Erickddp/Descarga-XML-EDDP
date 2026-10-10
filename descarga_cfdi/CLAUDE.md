@@ -6,8 +6,9 @@ App de escritorio Windows (Python 3 + tkinter) para contadores:
   inteligencia factura ↔ complemento de pago (REP) ↔ nota de crédito.
 
 ## Reglas (no negociables)
-1. **No cambiar comportamiento ni diseño de "Descargar"**: `sat_descarga/cliente.py`,
-   `flujo.py`, `ejecutor.py`, `almacen.py` y `App._construir_descarga` en `app.py`.
+1. **No cambiar el comportamiento de "Descargar"**: `sat_descarga/cliente.py`, `flujo.py`,
+   `ejecutor.py`, `almacen.py`. El diseño de `App._construir_descarga` sí se puede retocar
+   (Erick lo autorizó el 2026-10-09) mientras el módulo funcional quede intacto.
 2. **"Copiar tabla"** sale con `COLUMNAS_COPIADO` (65 columnas, mismo orden) salvo que el
    perfil de reporte activo defina otras. El Excel conserva **todas** las columnas (`COLUMNAS`).
 3. **Todo dato persistente vive en `carpeta_datos()`** (`%APPDATA%\DESCARGA XML EDDP`;
@@ -29,12 +30,15 @@ sat_descarga/config.py        Config/Opciones/Perfil (RFC + e.firma), carpeta_da
 sat_descarga/lector.py        XML → Renglon (COLUMNAS, COLUMNAS_COPIADO, CLASES),
                               leer_detalle() para visor/PDF, volcado_xml()
 sat_descarga/inteligencia.py  perspectiva, duplicados, relaciones, Memoria (memoria.json)
-sat_descarga/exportar.py      Excel/CSV/TSV, Indice (indice_xml.csv)
+sat_descarga/exportar.py      Excel/CSV/TSV, Indice (indice_xml.csv), CacheFilas
+                              (cache_filas/<hash>.json: renglones ya leídos por carpeta)
 sat_descarga/consulta.py      MotorSQL (sqlite en memoria) + plantillas
-sat_descarga/pdf.py           cfdi_a_pdf(), generar_pdfs(), nombre_pdf(), config del PDF
+sat_descarga/pdf.py           cfdi_a_pdf() (1 hoja, QR), generar_pdfs(), paquete_envio()
+                              (carpeta por cliente con XML+PDF "Serie-Folio UUID")
 sat_descarga/perfiles.py      perfiles de reporte (multi-cliente) → perfiles_reporte.json
 sat_descarga/respaldo.py      respaldar/restaurar .zip
 sat_descarga/tema.py          tema claro/oscuro, fuentes, zoom
+recursos/                     icono.ico/.png (app y .exe), logo_blanco.png (encabezado)
 ```
 - **Dos tipos de "perfil"**: `config.Perfil` = RFC con e.firma (pestaña Descargar).
   `perfiles.PerfilReporte` = cliente para reportes/PDF (pestaña Datos). No mezclarlos.
@@ -44,6 +48,11 @@ sat_descarga/tema.py          tema claro/oscuro, fuentes, zoom
 - La lectura de XML corre en hilo (`App._leer_datos`): leer + inteligencia + MotorSQL;
   al terminar el hilo manda `("__fin_lectura__", ...)` a la cola. En pruebas usar
   `app._leer_datos(esperar=True)`.
+
+- **Rendimiento**: "Leer XML" solo abre los XML nuevos o modificados (`CacheFilas`, por
+  mtime+tamaño; "Releer todo" la ignora). Si cambia lo que `lector.leer_xml_filas` extrae,
+  subir `exportar.VERSION_CACHE`. La tabla se llena con `tk.call` directo y el buscador
+  espera 180 ms (`_filtrar_pronto`). El PDF mide el cuerpo con `wrap()` y se genera una vez.
 
 ## Pruebas
 `python -m pytest -q` (UI real con Tk oculto). XML reales en `tests/xml_reales/`.

@@ -959,6 +959,28 @@ def test_generar_pdfs_solo_seleccion(app, tmp_path, monkeypatch):
     assert [p.name.split("_")[1] for p in destino.glob("*.pdf")] == ["G"]
 
 
+def test_pdf_de_todos_ignora_la_seleccion(app, tmp_path, monkeypatch):
+    import time as _t
+    import app as modulo
+    _cadena_real(app, tmp_path)
+    idx = next(i for i, r in enumerate(app.filas_vista) if r.datos["Folio"] == "4237")
+    app.tabla_datos.selection_set(str(idx))            # hay 1 seleccionado...
+    destino = tmp_path / "todos"
+    preguntas = []
+    monkeypatch.setattr(modulo.messagebox, "askyesno", lambda *a, **k: preguntas.append(a) or True)
+    monkeypatch.setattr(modulo.filedialog, "askdirectory", lambda **k: str(destino))
+    hecho = []
+    monkeypatch.setattr(modulo.messagebox, "showinfo", lambda *a, **k: hecho.append(a))
+    monkeypatch.setattr(app, "_abrir_ruta", lambda r: None)
+    app._generar_pdfs(todos=True)                      # ...pero "de todos" genera todo
+    limite = _t.time() + 30
+    while not hecho and _t.time() < limite:
+        app._vaciar_cola(); app.update(); _t.sleep(0.02)
+    assert len(list(destino.glob("*.pdf"))) == 3
+    assert "Generar 3 PDF" in preguntas[0][1]
+    assert not app.f_pdf.winfo_ismapped()
+
+
 def test_visor_muestra_letra_y_seguimiento(app, tmp_path):
     import app as modulo
     _cadena_real(app, tmp_path)
@@ -1120,3 +1142,35 @@ def test_volver_al_formato_eddp(app):
     dlg._preset_eddp(); dlg._aplicar()
     assert app.cols_export == list(COLUMNAS_COPIADO)
     assert app.cfg.opciones.columnas_copiado == []          # vacío = formato EDDP
+
+
+# ============================================================ marca y fluidez
+def test_la_app_trae_logo_e_icono(app):
+    recursos = Path(__file__).parent.parent / "recursos"
+    for nombre in ("icono.ico", "icono.png", "logo_blanco.png"):
+        assert (recursos / nombre).exists(), nombre
+    assert app._logo is not None and app._icono is not None
+
+
+def test_buscador_espera_a_que_dejes_de_teclear(app, tmp_path):
+    import time as _t
+    _cadena_real(app, tmp_path)
+    pintadas = []
+    real = app._pintar_tabla
+    app._pintar_tabla = lambda: pintadas.append(1) or real()
+    for letra in "4237":
+        app.v_buscar.set(app.v_buscar.get() + letra)
+        app._filtrar_pronto()
+    assert pintadas == []                               # aún no repinta
+    limite = _t.time() + 3
+    while not pintadas and _t.time() < limite:
+        app.update(); _t.sleep(0.02)
+    assert len(pintadas) == 1                           # una sola vez, al final
+    assert {r.datos["Folio"] for r in app.filas_vista} == {"4237"}
+    del app._pintar_tabla
+
+
+def test_buscador_filtra_por_fecha(app, tmp_path):
+    _cadena_real(app, tmp_path)
+    app.v_buscar.set("2026-08-12"); app._aplicar_filtros()
+    assert app.filas_vista and all(str(r.datos["Fecha"]).startswith("2026-08-12") for r in app.filas_vista)

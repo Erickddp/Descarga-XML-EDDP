@@ -363,3 +363,30 @@ def test_qr_usa_url_de_verificacion_del_sat():
     det = leer_detalle(_REALES / "factura_kangoo_4237.xml")
     assert det["qr_url"].startswith("https://verificacfdi.facturaelectronica.sat.gob.mx/default.aspx?id=37274D22")
     assert "&re=IMO011025RIA&rr=FODA920130KD4&tt=320000.00&fe=" in det["qr_url"]
+
+
+# ============================================================ paquete para enviar a clientes
+def test_nombre_envio_serie_folio_uuid():
+    from sat_descarga.pdf import nombre_envio
+    d = {"Serie": "C", "Folio": "1", "UUID": "37274d22-2601-4fe7-a8c3-0a16516df76a"}
+    assert nombre_envio(d) == "C-1 37274D22-2601-4FE7-A8C3-0A16516DF76A"
+    assert nombre_envio(dict(d, Serie="")) == "1 37274D22-2601-4FE7-A8C3-0A16516DF76A"
+    assert nombre_envio(dict(d, Serie="", Folio="")) == "37274D22-2601-4FE7-A8C3-0A16516DF76A"
+
+
+def test_paquete_envio_xml_y_pdf_mismo_nombre_por_cliente(tmp_path):
+    from sat_descarga.lector import leer_carpeta
+    from sat_descarga.pdf import paquete_envio
+    src = tmp_path / "emitidos"; src.mkdir()
+    _shutil.copy(_REALES / "factura_kangoo_4237.xml", src / "37274d22.xml")
+    filas = leer_carpeta(str(src))
+    cfg = cargar_config_pdf(str(tmp_path / "c.json"))
+    r = paquete_envio(filas, str(tmp_path / "envio"), config=cfg)
+    assert r["generados"] == 1 and not r["errores"]
+    carpetas = [p for p in (tmp_path / "envio").iterdir()]
+    assert len(carpetas) == 1 and carpetas[0].name.startswith("FODA920130KD4")   # el cliente
+    nombres = sorted(p.name for p in carpetas[0].iterdir())
+    base = "AIJ-4237 37274D22-2601-4FE7-A8C3-0A16516DF76A"
+    assert nombres == [base + ".pdf", base + ".xml"]
+    assert (src / "37274d22.xml").exists()                    # el original no se mueve
+    assert paquete_envio(filas, str(tmp_path / "envio"), config=cfg)["omitidos"] == 1
