@@ -1,0 +1,32 @@
+<cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4" xmlns:ventavehiculos="http://www.sat.gob.mx/ventavehiculos" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" Certificado="MIIGDTCC" CondicionesDePago="CONTADO" Exportacion="01" Fecha="2026-08-10T13:13:43" Folio="4237" FormaPago="99" LugarExpedicion="32618" MetodoPago="PPD" Moneda="MXN" NoCertificado="00001000000711037500" Sello="h9uviPBXQpYIP" Serie="AIJ" SubTotal="296296.30" TipoDeComprobante="I" Total="320000.00" Version="4.0">
+<cfdi:CfdiRelacionados TipoRelacion="07">
+<cfdi:CfdiRelacionado UUID="8E39662D-FCD6-4A82-BC09-E65327F36594"/>
+</cfdi:CfdiRelacionados>
+<cfdi:CfdiRelacionados TipoRelacion="07">
+<cfdi:CfdiRelacionado UUID="852EE125-6D8D-44B3-B773-619EF47A9CB7"/>
+</cfdi:CfdiRelacionados>
+<cfdi:Emisor Nombre="INSIGNIA MOTORS" RegimenFiscal="601" Rfc="IMO011025RIA"/>
+<cfdi:Receptor DomicilioFiscalReceptor="32546" Nombre="ADRIANA GUADALUPE FONSECA DOMINGUEZ" RegimenFiscalReceptor="626" Rfc="FODA920130KD4" UsoCFDI="I03"/>
+<cfdi:Conceptos>
+<cfdi:Concepto Cantidad="1" ClaveProdServ="25101500" ClaveUnidad="XVN" Descripcion="VEHICULO NUEVO MARCA RENAULT MODELO 2025 KANGOO INTENS TM , COLOR EXTERIOR: BLANCO GLACIAR , TRANSMISION: MANUAL , NO. PUERTAS: 2 , NO. MOTOR: H4MJ759Q367466 , NO. SERIE: 8A1860TS5SL377373" Importe="296296.30" NoIdentificacion="NVN" ObjetoImp="02" Unidad="VEHiCULO" ValorUnitario="296296.30">
+<cfdi:Impuestos>
+<cfdi:Traslados>
+<cfdi:Traslado Base="296296.30" Importe="23703.70" Impuesto="002" TasaOCuota="0.080000" TipoFactor="Tasa"/>
+</cfdi:Traslados>
+</cfdi:Impuestos>
+<cfdi:ComplementoConcepto>
+<ventavehiculos:VentaVehiculos ClaveVehicular="1070310" Niv="8A1860TS5SL377373" version="1.1">
+<ventavehiculos:InformacionAduanera aduana="430" fecha="2025-10-27" numero="25 43 3843 5007012"/>
+</ventavehiculos:VentaVehiculos>
+</cfdi:ComplementoConcepto>
+</cfdi:Concepto>
+</cfdi:Conceptos>
+<cfdi:Impuestos TotalImpuestosTrasladados="23703.70">
+<cfdi:Traslados>
+<cfdi:Traslado Base="296296.30" Importe="23703.70" Impuesto="002" TasaOCuota="0.080000" TipoFactor="Tasa"/>
+</cfdi:Traslados>
+</cfdi:Impuestos>
+<cfdi:Complemento>
+<tfd:TimbreFiscalDigital xmlns:tfd="http://www.sat.gob.mx/TimbreFiscalDigital" FechaTimbrado="2026-08-10T13:13:51" NoCertificadoSAT="00001000000705928441" RfcProvCertif="PPD101129EA3" SelloCFD="h9uviPBXQ" SelloSAT="gZgAlqIIA0r8" UUID="37274D22-2601-4FE7-A8C3-0A16516DF76A" Version="1.1"/>
+</cfdi:Complemento>
+</cfdi:Comprobante>

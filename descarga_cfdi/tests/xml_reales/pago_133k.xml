@@ -1,0 +1,34 @@
+<cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4" xmlns:pago20="http://www.sat.gob.mx/Pagos20" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" Certificado="MIIGDTCC" Exportacion="01" Fecha="2026-08-12T10:28:04" Folio="22898" LugarExpedicion="32618" Moneda="XXX" NoCertificado="00001000000711037500" Sello="fMbcagxUE2G0q3bR7n4bBV8cWxL6" Serie="IJ" SubTotal="0" TipoDeComprobante="P" Total="0" Version="4.0" xsi:schemaLocation="http://www.sat.gob.mx/cfd/4 http://www.sat.gob.mx/sitio_internet/cfd/4/cfdv40.xsd http://www.sat.gob.mx/Pagos20 http://www.sat.gob.mx/sitio_internet/cfd/Pagos/Pagos20.xsd">
+<cfdi:Emisor Nombre="INSIGNIA MOTORS" RegimenFiscal="601" Rfc="IMO011025RIA"/>
+<cfdi:Receptor DomicilioFiscalReceptor="32546" Nombre="ADRIANA GUADALUPE FONSECA DOMINGUEZ" RegimenFiscalReceptor="626" Rfc="FODA920130KD4" UsoCFDI="CP01"/>
+<cfdi:Conceptos>
+<cfdi:Concepto Cantidad="1" ClaveProdServ="84111506" ClaveUnidad="ACT" Descripcion="Pago" Importe="0" ObjetoImp="01" ValorUnitario="0"/>
+</cfdi:Conceptos>
+<cfdi:Complemento>
+<pago20:Pagos Version="2.0">
+<pago20:Totales MontoTotalPagos="133889.04" TotalTrasladosBaseIVA8="123971.34" TotalTrasladosImpuestoIVA8="9917.70"/>
+<pago20:Pago FechaPago="2026-08-12T10:28:04" FormaDePagoP="17" MonedaP="MXN" Monto="133889.04" NumOperacion="17" TipoCambioP="1">
+<pago20:DoctoRelacionado EquivalenciaDR="1" Folio="15761" IdDocumento="895E0DD5-2178-4071-994E-6690F33B4429" ImpPagado="9500.00" ImpSaldoAnt="9500.00" ImpSaldoInsoluto="0.00" MonedaDR="MXN" NumParcialidad="1" ObjetoImpDR="02" Serie="SIJ">
+<pago20:ImpuestosDR>
+<pago20:TrasladosDR>
+<pago20:TrasladoDR BaseDR="8796.30" ImporteDR="703.70" ImpuestoDR="002" TasaOCuotaDR="0.080000" TipoFactorDR="Tasa"/>
+</pago20:TrasladosDR>
+</pago20:ImpuestosDR>
+</pago20:DoctoRelacionado>
+<pago20:DoctoRelacionado EquivalenciaDR="1" Folio="4237" IdDocumento="37274D22-2601-4FE7-A8C3-0A16516DF76A" ImpPagado="124389.04" ImpSaldoAnt="169389.04" ImpSaldoInsoluto="45000.00" MonedaDR="MXN" NumParcialidad="1" ObjetoImpDR="02" Serie="AIJ">
+<pago20:ImpuestosDR>
+<pago20:TrasladosDR>
+<pago20:TrasladoDR BaseDR="115175.04" ImporteDR="9214.00" ImpuestoDR="002" TasaOCuotaDR="0.080000" TipoFactorDR="Tasa"/>
+</pago20:TrasladosDR>
+</pago20:ImpuestosDR>
+</pago20:DoctoRelacionado>
+<pago20:ImpuestosP>
+<pago20:TrasladosP>
+<pago20:TrasladoP BaseP="123971.34" ImporteP="9917.70" ImpuestoP="002" TasaOCuotaP="0.080000" TipoFactorP="Tasa"/>
+</pago20:TrasladosP>
+</pago20:ImpuestosP>
+</pago20:Pago>
+</pago20:Pagos>
+<tfd:TimbreFiscalDigital xmlns:tfd="http://www.sat.gob.mx/TimbreFiscalDigital" FechaTimbrado="2026-08-12T10:28:27" NoCertificadoSAT="00001000000705928441" RfcProvCertif="PPD101129EA3" SelloCFD="fMbcagxUE2G0q3bR7n4b" SelloSAT="JxlMYPdD9ppA6eJUV0eYah" UUID="A1B78866-8CC7-429A-8DAC-A4B8BFA36D6E" Version="1.1"/>
+</cfdi:Complemento>
+</cfdi:Comprobante>

@@ -1,0 +1,24 @@
+<cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" Certificado="MIIGDTCC" CondicionesDePago="CONTADO" Exportacion="01" Fecha="2026-08-10T13:17:40" Folio="464" FormaPago="30" LugarExpedicion="32618" MetodoPago="PUE" Moneda="MXN" NoCertificado="00001000000711037500" Sello="cCyFZbbz" Serie="EN8IJ" SubTotal="139454.59" TipoDeComprobante="E" Total="150610.96" Version="4.0">
+<cfdi:CfdiRelacionados TipoRelacion="07">
+<cfdi:CfdiRelacionado UUID="37274D22-2601-4FE7-A8C3-0A16516DF76A"/>
+</cfdi:CfdiRelacionados>
+<cfdi:Emisor Nombre="INSIGNIA MOTORS" RegimenFiscal="601" Rfc="IMO011025RIA"/>
+<cfdi:Receptor DomicilioFiscalReceptor="32546" Nombre="ADRIANA GUADALUPE FONSECA DOMINGUEZ" RegimenFiscalReceptor="626" Rfc="FODA920130KD4" UsoCFDI="CP01"/>
+<cfdi:Conceptos>
+<cfdi:Concepto Cantidad="1" ClaveProdServ="84111506" ClaveUnidad="ACT" Descripcion="EGRESO ANT. UNID. NUEVAS 8%" Importe="139454.59" NoIdentificacion="ANE8" ObjetoImp="02" Unidad="ACTIVIDAD" ValorUnitario="139454.59">
+<cfdi:Impuestos>
+<cfdi:Traslados>
+<cfdi:Traslado Base="139454.59" Importe="11156.37" Impuesto="002" TasaOCuota="0.080000" TipoFactor="Tasa"/>
+</cfdi:Traslados>
+</cfdi:Impuestos>
+</cfdi:Concepto>
+</cfdi:Conceptos>
+<cfdi:Impuestos TotalImpuestosTrasladados="11156.37">
+<cfdi:Traslados>
+<cfdi:Traslado Base="139454.59" Importe="11156.37" Impuesto="002" TasaOCuota="0.080000" TipoFactor="Tasa"/>
+</cfdi:Traslados>
+</cfdi:Impuestos>
+<cfdi:Complemento>
+<tfd:TimbreFiscalDigital xmlns:tfd="http://www.sat.gob.mx/TimbreFiscalDigital" FechaTimbrado="2026-08-10T13:17:53" NoCertificadoSAT="00001000000705928441" RfcProvCertif="PPD101129EA3" SelloCFD="cCyFZbbz" SelloSAT="Kq9hCG3R" UUID="34002906-540B-4BE3-A601-718E594B2538" Version="1.1"/>
+</cfdi:Complemento>
+</cfdi:Comprobante>

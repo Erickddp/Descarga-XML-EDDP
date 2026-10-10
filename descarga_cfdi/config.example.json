@@ -1,0 +1,12 @@
+{
+  "opciones": {
+    "carpeta_salida": "descargas_cfdi",
+    "max_solicitudes_dia": 200,
+    "poll_intervalo_seg": 30,
+    "poll_max_intentos": 40,
+    "reintentos": 4,
+    "backoff_base_seg": 3.0,
+    "dividir_por_mes": true
+  },
+  "perfiles": []
+}
